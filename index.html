@@ -1,0 +1,739 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>PPT Presenter</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📽️</text></svg>">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        :root {
+            --primary: #2563eb; --primary-dark: #1d4ed8;
+            --bg: #0f172a; --surface: #1e293b; --surface2: #334155;
+            --text: #f1f5f9; --text-dim: #94a3b8;
+            --accent: #f59e0b; --danger: #ef4444; --success: #22c55e;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: var(--bg); color: var(--text);
+            min-height: 100vh; min-height: 100dvh;
+            overflow: hidden; user-select: none;
+        }
+
+        /* ===== Screens ===== */
+        .screen { display: none; width: 100%; height: 100vh; height: 100dvh; }
+        .screen.active { display: flex; }
+
+        /* ===== Landing ===== */
+        #landing {
+            flex-direction: column; align-items: center;
+            justify-content: center; gap: 32px; padding: 20px;
+        }
+        .title { font-size: 2.2rem; font-weight: 800; text-align: center; }
+        .title span { color: var(--accent); }
+        .subtitle { color: var(--text-dim); font-size: 1rem; text-align: center; margin-top: -16px; }
+
+        .cards { display: flex; gap: 20px; flex-wrap: wrap; justify-content: center; }
+        .card {
+            background: var(--surface); border: 2px solid var(--surface2);
+            border-radius: 16px; padding: 28px 24px; width: 280px;
+            cursor: pointer; transition: all 0.2s; text-align: center;
+        }
+        .card:hover { border-color: var(--primary); transform: translateY(-3px); box-shadow: 0 8px 24px rgba(37,99,235,0.15); }
+        .card .icon { font-size: 2.5rem; margin-bottom: 12px; }
+        .card h3 { font-size: 1.2rem; margin-bottom: 6px; }
+        .card p { color: var(--text-dim); font-size: 0.85rem; line-height: 1.5; }
+
+        /* ===== Setup Screen ===== */
+        #setup-screen {
+            flex-direction: column; align-items: center;
+            justify-content: center; gap: 20px; padding: 20px;
+        }
+        .setup-box {
+            background: var(--surface); border-radius: 16px;
+            padding: 32px; text-align: center; max-width: 480px; width: 100%;
+        }
+        .setup-box h2 { margin-bottom: 16px; font-size: 1.4rem; }
+
+        .status-badge {
+            display: inline-flex; align-items: center; gap: 8px;
+            padding: 10px 20px; border-radius: 30px; font-weight: 600;
+            font-size: 0.95rem; margin: 16px 0;
+        }
+        .status-badge.connected { background: rgba(34,197,94,0.15); color: var(--success); }
+        .status-badge.disconnected { background: rgba(239,68,68,0.15); color: var(--danger); }
+        .status-badge .dot {
+            width: 10px; height: 10px; border-radius: 50%;
+            background: currentColor; animation: pulse 1.5s infinite;
+        }
+        @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
+
+        .info-row {
+            background: var(--bg); border-radius: 10px; padding: 14px 16px;
+            display: flex; justify-content: space-between; align-items: center;
+            margin: 8px 0; font-size: 0.9rem;
+        }
+        .info-row .label { color: var(--text-dim); }
+        .info-row .value { font-weight: 600; }
+
+        .connect-url {
+            background: var(--bg); border-radius: 12px;
+            padding: 16px; margin: 16px 0; word-break: break-all;
+        }
+        .connect-url .url {
+            font-size: 1.3rem; font-weight: 700;
+            color: var(--accent); font-family: monospace;
+        }
+        .connect-url p { color: var(--text-dim); font-size: 0.8rem; margin-top: 6px; }
+
+        /* ===== Controller ===== */
+        #controller {
+            flex-direction: column; background: var(--bg);
+        }
+        .ctrl-header {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 10px 14px; background: var(--surface);
+            border-bottom: 1px solid var(--surface2); flex-shrink: 0;
+        }
+        .ctrl-header h3 { font-size: 0.9rem; white-space: nowrap; }
+        .ctrl-header .conn {
+            display: flex; align-items: center; gap: 5px; font-size: 0.8rem;
+        }
+        .conn-dot {
+            width: 7px; height: 7px; border-radius: 50%;
+            background: var(--success);
+        }
+        .conn-dot.off { background: var(--danger); }
+        .timer { font-family: monospace; font-size: 0.9rem; color: var(--text-dim); font-weight: 600; }
+
+        .ctrl-body {
+            flex: 1; display: flex; flex-direction: column;
+            padding: 12px; gap: 10px; overflow: hidden; min-height: 0;
+        }
+        .slide-label {
+            font-size: 0.75rem; color: var(--text-dim); text-transform: uppercase;
+            letter-spacing: 1px; font-weight: 600; flex-shrink: 0;
+        }
+        .slide-label span { color: var(--accent); font-size: 0.85rem; }
+
+        .slide-area {
+            flex: 1; display: flex; flex-direction: column; gap: 6px; min-height: 0;
+        }
+        .slide-frame {
+            flex: 1; background: var(--surface); border-radius: 10px;
+            overflow: hidden; display: flex; align-items: center;
+            justify-content: center; min-height: 0;
+            border: 2px solid var(--surface2); position: relative;
+        }
+        .slide-frame.current { border-color: var(--primary); }
+        .slide-frame img {
+            max-width: 100%; max-height: 100%; object-fit: contain;
+        }
+        .slide-frame .empty {
+            color: var(--text-dim); font-size: 0.85rem; text-align: center; padding: 20px;
+        }
+        .next-area {
+            height: 28%; min-height: 80px; flex-shrink: 0;
+            display: flex; flex-direction: column; gap: 6px;
+        }
+
+        /* Nav */
+        .ctrl-nav {
+            display: flex; gap: 10px; padding: 12px;
+            background: var(--surface); border-top: 1px solid var(--surface2); flex-shrink: 0;
+        }
+        .nav-btn {
+            flex: 1; padding: 14px; border: none; border-radius: 12px;
+            font-size: 1.05rem; font-weight: 700; cursor: pointer;
+            transition: all 0.1s; display: flex; align-items: center;
+            justify-content: center; gap: 6px;
+        }
+        .nav-btn.prev { background: var(--surface2); color: var(--text); }
+        .nav-btn.next { background: var(--primary); color: white; }
+        .nav-btn:active { transform: scale(0.96); }
+        .nav-btn:disabled { opacity: 0.3; pointer-events: none; }
+
+        /* Toolbar */
+        .ctrl-toolbar {
+            display: flex; gap: 8px; padding: 0 12px 8px;
+            flex-shrink: 0;
+        }
+        .tool-btn {
+            flex: 1; padding: 10px; border: 1px solid var(--surface2);
+            background: var(--surface); color: var(--text-dim);
+            border-radius: 10px; font-size: 0.8rem; cursor: pointer;
+            text-align: center; transition: all 0.15s;
+        }
+        .tool-btn:active { background: var(--surface2); }
+        .tool-btn.active { color: var(--accent); border-color: var(--accent); }
+        .tool-btn.danger { color: var(--danger); border-color: var(--danger); }
+
+        /* ===== Slide Drawer ===== */
+        .drawer-overlay {
+            position: fixed; inset: 0; background: rgba(0,0,0,0.5);
+            z-index: 99; display: none;
+        }
+        .drawer-overlay.open { display: block; }
+        .slide-drawer {
+            position: fixed; bottom: 0; left: 0; right: 0;
+            background: var(--surface); border-radius: 18px 18px 0 0;
+            max-height: 65vh; transform: translateY(100%);
+            transition: transform 0.3s ease; z-index: 100;
+            display: flex; flex-direction: column;
+        }
+        .slide-drawer.open { transform: translateY(0); }
+        .drawer-handle {
+            width: 36px; height: 4px; background: var(--surface2);
+            border-radius: 2px; margin: 10px auto; flex-shrink: 0;
+        }
+        .slide-grid {
+            display: grid; grid-template-columns: repeat(3, 1fr);
+            gap: 8px; padding: 6px 14px 20px; overflow-y: auto;
+        }
+        .slide-thumb {
+            aspect-ratio: 16/9; background: var(--bg); border-radius: 6px;
+            overflow: hidden; cursor: pointer; border: 2px solid transparent;
+            transition: border-color 0.2s; position: relative;
+        }
+        .slide-thumb.active { border-color: var(--primary); }
+        .slide-thumb img { width: 100%; height: 100%; object-fit: contain; }
+        .slide-thumb .num {
+            position: absolute; bottom: 1px; right: 3px;
+            font-size: 0.65rem; color: var(--text-dim);
+            background: rgba(0,0,0,0.6); padding: 1px 4px; border-radius: 3px;
+        }
+
+        /* ===== Buttons ===== */
+        .btn {
+            padding: 12px 28px; border: none; border-radius: 12px;
+            font-size: 1rem; font-weight: 600; cursor: pointer;
+            transition: all 0.2s; display: inline-flex;
+            align-items: center; gap: 8px;
+        }
+        .btn-primary { background: var(--primary); color: white; }
+        .btn-primary:hover { background: var(--primary-dark); }
+        .btn-success { background: var(--success); color: white; }
+        .btn-danger { background: var(--danger); color: white; }
+        .btn-outline { background: transparent; color: var(--text); border: 2px solid var(--surface2); }
+        .btn-outline:hover { border-color: var(--text-dim); }
+        .btn-large { padding: 16px 40px; font-size: 1.1rem; }
+        .btn:disabled { opacity: 0.4; pointer-events: none; }
+        .back-btn {
+            position: absolute; top: 16px; left: 16px;
+            background: var(--surface); border: none; color: var(--text);
+            width: 40px; height: 40px; border-radius: 10px;
+            cursor: pointer; font-size: 1.1rem; z-index: 10;
+            display: flex; align-items: center; justify-content: center;
+        }
+
+        /* ===== Toast ===== */
+        .toast {
+            position: fixed; top: 16px; left: 50%;
+            transform: translateX(-50%) translateY(-80px);
+            background: var(--surface); border: 1px solid var(--surface2);
+            padding: 10px 22px; border-radius: 10px; font-size: 0.85rem;
+            z-index: 1000; transition: transform 0.3s ease;
+            box-shadow: 0 6px 24px rgba(0,0,0,0.3);
+        }
+        .toast.show { transform: translateX(-50%) translateY(0); }
+
+        /* ===== Responsive ===== */
+        @media (max-width: 600px) {
+            .title { font-size: 1.5rem; }
+            .cards { gap: 12px; }
+            .card { width: 100%; max-width: 300px; padding: 20px; }
+            .setup-box { padding: 24px 18px; }
+        }
+    </style>
+</head>
+<body>
+    <!-- Landing -->
+    <div id="landing" class="screen active">
+        <div class="title">📽️ PPT <span>Presenter</span></div>
+        <div class="subtitle">스마트폰으로 PowerPoint를 원격 제어합니다</div>
+        <div class="cards">
+            <div class="card" onclick="app.showSetup()">
+                <div class="icon">🖥️</div>
+                <h3>발표자 (노트북)</h3>
+                <p>이 노트북의 PowerPoint를<br>원격 제어할 수 있게 합니다</p>
+            </div>
+            <div class="card" onclick="app.enterController()">
+                <div class="icon">📱</div>
+                <h3>컨트롤러 (폰)</h3>
+                <p>이미 서버가 실행 중인 경우<br>바로 컨트롤러로 진입합니다</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Setup (Laptop) -->
+    <div id="setup-screen" class="screen">
+        <button class="back-btn" onclick="app.showLanding()">←</button>
+        <div class="setup-box">
+            <h2>🖥️ 발표 준비</h2>
+
+            <div id="ppt-status">
+                <div class="status-badge disconnected" id="ppt-badge">
+                    <div class="dot"></div>
+                    <span id="ppt-badge-text">PowerPoint 확인 중...</span>
+                </div>
+            </div>
+
+            <div id="ppt-info" style="display:none;">
+                <div class="info-row">
+                    <span class="label">파일</span>
+                    <span class="value" id="info-filename">-</span>
+                </div>
+                <div class="info-row">
+                    <span class="label">슬라이드</span>
+                    <span class="value" id="info-slides">-</span>
+                </div>
+            </div>
+
+            <div id="export-section" style="display:none; margin: 16px 0;">
+                <button class="btn btn-primary" id="export-btn" onclick="app.exportSlides()">
+                    📸 슬라이드 미리보기 생성
+                </button>
+                <p style="color:var(--text-dim); font-size:0.8rem; margin-top:8px;">
+                    컨트롤러에서 슬라이드 미리보기를 보려면 실행하세요
+                </p>
+            </div>
+
+            <div id="connect-info" style="display:none;">
+                <div class="connect-url">
+                    <div class="url" id="connect-url-text">-</div>
+                    <p>스마트폰 브라우저에서 이 주소를 입력하세요</p>
+                </div>
+            </div>
+
+            <div style="display:flex; gap:10px; justify-content:center; flex-wrap:wrap; margin-top:16px;">
+                <button class="btn btn-success btn-large" id="start-show-btn"
+                        onclick="app.startSlideshow()" style="display:none;">
+                    ▶ 발표 시작
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Controller -->
+    <div id="controller" class="screen">
+        <div class="ctrl-header">
+            <h3>📱 PPT 컨트롤러</h3>
+            <div class="conn">
+                <div class="conn-dot" id="ctrl-dot"></div>
+                <span id="ctrl-conn-text">연결됨</span>
+            </div>
+            <div class="timer" id="ctrl-timer">00:00</div>
+            <button class="btn btn-danger" style="padding:6px 12px; font-size:0.75rem;"
+                    onclick="app.endSlideshow()">종료</button>
+        </div>
+
+        <div class="ctrl-body">
+            <div class="slide-area">
+                <div class="slide-label">현재 슬라이드 <span id="ctrl-indicator">- / -</span></div>
+                <div class="slide-frame current" id="ctrl-current" onclick="app.toggleDrawer()">
+                    <div class="empty">PowerPoint 연결 대기 중...</div>
+                </div>
+            </div>
+            <div class="next-area">
+                <div class="slide-label">다음 슬라이드</div>
+                <div class="slide-frame" id="ctrl-next">
+                    <div class="empty">-</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="ctrl-toolbar">
+            <div class="tool-btn" onclick="app.startSlideshow()">▶ 시작</div>
+            <div class="tool-btn" onclick="app.blackScreen()">⬛ 블랙</div>
+            <div class="tool-btn" onclick="app.gotoFirst()">⏮ 처음</div>
+            <div class="tool-btn" onclick="app.gotoLast()">⏭ 마지막</div>
+        </div>
+
+        <div class="ctrl-nav">
+            <button class="nav-btn prev" id="prev-btn" onclick="app.prevSlide()">◀ 이전</button>
+            <button class="nav-btn next" id="next-btn" onclick="app.nextSlide()">다음 ▶</button>
+        </div>
+    </div>
+
+    <!-- Drawer -->
+    <div class="drawer-overlay" id="drawer-overlay" onclick="app.toggleDrawer()"></div>
+    <div class="slide-drawer" id="slide-drawer">
+        <div class="drawer-handle"></div>
+        <div class="slide-grid" id="slide-grid"></div>
+    </div>
+
+    <!-- Toast -->
+    <div class="toast" id="toast"></div>
+
+<script>
+class App {
+    constructor() {
+        this.currentSlide = 0;
+        this.totalSlides = 0;
+        this.presenting = false;
+        this.slideUrls = [];
+        this.pollTimer = null;
+        this.timerInterval = null;
+        this.startTime = null;
+        this.drawerOpen = false;
+        this.connected = false;
+        this.setupTouch();
+        this.setupKeyboard();
+    }
+
+    // ---- Screens ----
+    showScreen(id) {
+        document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+        document.getElementById(id).classList.add('active');
+    }
+
+    showLanding() {
+        this.stopPolling();
+        this.stopTimer();
+        this.showScreen('landing');
+    }
+
+    showSetup() {
+        this.showScreen('setup-screen');
+        this.checkPowerPoint();
+        this.fetchIP();
+    }
+
+    enterController() {
+        this.showScreen('controller');
+        this.startPolling();
+        this.loadSlideUrls();
+    }
+
+    // ---- API helpers ----
+    async api(method, path, body) {
+        try {
+            const opts = { method };
+            if (body) {
+                opts.headers = { 'Content-Type': 'application/json' };
+                opts.body = JSON.stringify(body);
+            }
+            const res = await fetch(path, opts);
+            if (!res.ok) throw new Error(res.statusText);
+            return await res.json();
+        } catch (e) {
+            console.error('API error:', path, e);
+            return null;
+        }
+    }
+
+    // ---- Setup ----
+    async checkPowerPoint() {
+        const data = await this.api('GET', '/api/check');
+        const badge = document.getElementById('ppt-badge');
+        const text = document.getElementById('ppt-badge-text');
+
+        if (!data) {
+            badge.className = 'status-badge disconnected';
+            text.textContent = '서버 연결 실패';
+            return;
+        }
+
+        if (data.running) {
+            badge.className = 'status-badge connected';
+            text.textContent = 'PowerPoint 실행 중';
+            document.getElementById('export-section').style.display = '';
+            document.getElementById('start-show-btn').style.display = '';
+            this.fetchStatus(true);
+        } else {
+            badge.className = 'status-badge disconnected';
+            text.textContent = 'PowerPoint를 실행해주세요';
+            // Retry
+            setTimeout(() => this.checkPowerPoint(), 3000);
+        }
+    }
+
+    async fetchStatus(updateSetup) {
+        const data = await this.api('GET', '/api/status');
+        if (!data) return;
+
+        this.currentSlide = data.currentSlide;
+        this.totalSlides = data.totalSlides;
+        this.presenting = data.presenting;
+        this.connected = true;
+
+        if (updateSetup) {
+            document.getElementById('ppt-info').style.display = '';
+            document.getElementById('info-filename').textContent =
+                data.filename || '-';
+            document.getElementById('info-slides').textContent =
+                data.totalSlides + '장';
+        }
+    }
+
+    async fetchIP() {
+        const data = await this.api('GET', '/api/ip');
+        if (data) {
+            document.getElementById('connect-info').style.display = '';
+            document.getElementById('connect-url-text').textContent =
+                `http://${data.ip}:${data.port}`;
+        }
+    }
+
+    async exportSlides() {
+        const btn = document.getElementById('export-btn');
+        btn.disabled = true;
+        btn.textContent = '⏳ 내보내기 중...';
+
+        const data = await this.api('POST', '/api/export');
+        btn.disabled = false;
+        btn.textContent = '📸 슬라이드 미리보기 생성';
+
+        if (data && data.ok) {
+            this.toast(`✅ ${data.count}장 슬라이드 미리보기 생성 완료`);
+        } else {
+            this.toast('슬라이드 내보내기 실패');
+        }
+    }
+
+    // ---- Slide control ----
+    async startSlideshow() {
+        await this.api('POST', '/api/slideshow/start');
+        this.presenting = true;
+        this.startTimer();
+        this.toast('▶ 발표 시작');
+    }
+
+    async endSlideshow() {
+        await this.api('POST', '/api/slideshow/end');
+        this.presenting = false;
+        this.stopTimer();
+        this.toast('⏹ 발표 종료');
+    }
+
+    async nextSlide() {
+        await this.api('POST', '/api/slide/next');
+        this.flashButton('next-btn');
+    }
+
+    async prevSlide() {
+        await this.api('POST', '/api/slide/prev');
+        this.flashButton('prev-btn');
+    }
+
+    async gotoSlide(n) {
+        await this.api('POST', '/api/slide/goto', { slide: n });
+    }
+
+    async blackScreen() {
+        await this.api('POST', '/api/slide/black');
+    }
+
+    gotoFirst() { this.gotoSlide(1); }
+    gotoLast() { if (this.totalSlides > 0) this.gotoSlide(this.totalSlides); }
+
+    flashButton(id) {
+        const btn = document.getElementById(id);
+        if (btn) {
+            btn.style.transform = 'scale(0.95)';
+            setTimeout(() => btn.style.transform = '', 100);
+        }
+    }
+
+    // ---- Polling ----
+    startPolling() {
+        this.poll();
+        this.pollTimer = setInterval(() => this.poll(), 500);
+    }
+
+    stopPolling() {
+        if (this.pollTimer) clearInterval(this.pollTimer);
+        this.pollTimer = null;
+    }
+
+    async poll() {
+        const data = await this.api('GET', '/api/status');
+        const dot = document.getElementById('ctrl-dot');
+        const connText = document.getElementById('ctrl-conn-text');
+
+        if (!data) {
+            if (dot) dot.className = 'conn-dot off';
+            if (connText) connText.textContent = '연결 끊김';
+            this.connected = false;
+            return;
+        }
+
+        this.connected = true;
+        if (dot) dot.className = 'conn-dot';
+        if (connText) connText.textContent = data.presenting ? '발표 중' : '대기 중';
+
+        // Auto-start timer when presenting starts
+        if (data.presenting && !this.presenting) {
+            this.presenting = true;
+            this.startTimer();
+        } else if (!data.presenting && this.presenting) {
+            this.presenting = false;
+            this.stopTimer();
+        }
+
+        this.currentSlide = data.currentSlide;
+        this.totalSlides = data.totalSlides;
+        this.updateControllerView();
+    }
+
+    async loadSlideUrls() {
+        const data = await this.api('GET', '/api/slides');
+        if (data && data.slides) {
+            this.slideUrls = data.slides;
+        }
+    }
+
+    updateControllerView() {
+        // Indicator
+        const indicator = document.getElementById('ctrl-indicator');
+        if (indicator) {
+            indicator.textContent = this.presenting
+                ? `${this.currentSlide} / ${this.totalSlides}`
+                : `- / ${this.totalSlides || '-'}`;
+        }
+
+        // Current slide image
+        const currentFrame = document.getElementById('ctrl-current');
+        if (currentFrame && this.presenting && this.currentSlide > 0) {
+            const idx = this.currentSlide - 1;
+            if (this.slideUrls[idx]) {
+                const existingImg = currentFrame.querySelector('img');
+                const url = this.slideUrls[idx];
+                if (!existingImg || existingImg.dataset.idx !== String(idx)) {
+                    currentFrame.innerHTML = `<img src="${url}" data-idx="${idx}">`;
+                }
+            } else {
+                const empty = currentFrame.querySelector('.empty');
+                if (!empty || empty.textContent !== `슬라이드 ${this.currentSlide}`) {
+                    currentFrame.innerHTML = `<div class="empty" style="font-size:2rem;">${this.currentSlide}<br><span style="font-size:0.85rem;color:var(--text-dim);">미리보기 없음</span></div>`;
+                }
+            }
+        } else if (currentFrame && !this.presenting) {
+            const hasEmpty = currentFrame.querySelector('.empty');
+            if (!hasEmpty) {
+                currentFrame.innerHTML = '<div class="empty">▶ 발표를 시작하세요</div>';
+            }
+        }
+
+        // Next slide image
+        const nextFrame = document.getElementById('ctrl-next');
+        if (nextFrame && this.presenting && this.currentSlide > 0) {
+            const nextIdx = this.currentSlide; // 0-based next = currentSlide (1-based current)
+            if (nextIdx < this.totalSlides && this.slideUrls[nextIdx]) {
+                const existingImg = nextFrame.querySelector('img');
+                if (!existingImg || existingImg.dataset.idx !== String(nextIdx)) {
+                    nextFrame.innerHTML = `<img src="${this.slideUrls[nextIdx]}" data-idx="${nextIdx}">`;
+                }
+            } else if (nextIdx >= this.totalSlides) {
+                nextFrame.innerHTML = '<div class="empty">마지막 슬라이드</div>';
+            } else {
+                nextFrame.innerHTML = `<div class="empty">${this.currentSlide + 1}</div>`;
+            }
+        }
+
+        // Button states
+        const prevBtn = document.getElementById('prev-btn');
+        const nextBtn = document.getElementById('next-btn');
+        if (prevBtn) prevBtn.disabled = !this.presenting || this.currentSlide <= 1;
+        if (nextBtn) nextBtn.disabled = !this.presenting || this.currentSlide >= this.totalSlides;
+    }
+
+    // ---- Drawer ----
+    toggleDrawer() {
+        this.drawerOpen = !this.drawerOpen;
+        document.getElementById('slide-drawer').classList.toggle('open', this.drawerOpen);
+        document.getElementById('drawer-overlay').classList.toggle('open', this.drawerOpen);
+        if (this.drawerOpen) this.buildDrawer();
+    }
+
+    buildDrawer() {
+        const grid = document.getElementById('slide-grid');
+        grid.innerHTML = '';
+        const total = Math.max(this.totalSlides, this.slideUrls.length);
+        for (let i = 0; i < total; i++) {
+            const thumb = document.createElement('div');
+            thumb.className = 'slide-thumb' + (i + 1 === this.currentSlide ? ' active' : '');
+            if (this.slideUrls[i]) {
+                thumb.innerHTML = `<img src="${this.slideUrls[i]}">`;
+            } else {
+                thumb.innerHTML = `<div class="empty" style="display:flex;align-items:center;justify-content:center;height:100%;font-size:1.2rem;">${i + 1}</div>`;
+            }
+            const num = document.createElement('div');
+            num.className = 'num';
+            num.textContent = i + 1;
+            thumb.appendChild(num);
+            thumb.addEventListener('click', () => {
+                this.gotoSlide(i + 1);
+                this.toggleDrawer();
+            });
+            grid.appendChild(thumb);
+        }
+    }
+
+    // ---- Timer ----
+    startTimer() {
+        if (this.timerInterval) return;
+        this.startTime = Date.now();
+        this.timerInterval = setInterval(() => this.updateTimerDisplay(), 1000);
+    }
+    stopTimer() {
+        if (this.timerInterval) clearInterval(this.timerInterval);
+        this.timerInterval = null;
+    }
+    updateTimerDisplay() {
+        if (!this.startTime) return;
+        const s = Math.floor((Date.now() - this.startTime) / 1000);
+        const mm = String(Math.floor(s / 60)).padStart(2, '0');
+        const ss = String(s % 60).padStart(2, '0');
+        const el = document.getElementById('ctrl-timer');
+        if (el) el.textContent = `${mm}:${ss}`;
+    }
+
+    // ---- Input ----
+    setupKeyboard() {
+        document.addEventListener('keydown', e => {
+            const screen = document.querySelector('.screen.active');
+            if (!screen || screen.id !== 'controller') return;
+            if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'PageDown') {
+                e.preventDefault(); this.nextSlide();
+            } else if (e.key === 'ArrowLeft' || e.key === 'PageUp') {
+                e.preventDefault(); this.prevSlide();
+            } else if (e.key === 'Escape') {
+                if (this.drawerOpen) this.toggleDrawer();
+            } else if (e.key === 'b' || e.key === 'B') {
+                this.blackScreen();
+            }
+        });
+    }
+
+    setupTouch() {
+        let sx = 0, sy = 0;
+        document.addEventListener('touchstart', e => {
+            sx = e.touches[0].clientX;
+            sy = e.touches[0].clientY;
+        }, { passive: true });
+        document.addEventListener('touchend', e => {
+            const screen = document.querySelector('.screen.active');
+            if (!screen || screen.id !== 'controller') return;
+            const dx = e.changedTouches[0].clientX - sx;
+            const dy = e.changedTouches[0].clientY - sy;
+            if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 60) {
+                if (dx < 0) this.nextSlide();
+                else this.prevSlide();
+            }
+        }, { passive: true });
+    }
+
+    // ---- Toast ----
+    toast(msg) {
+        const t = document.getElementById('toast');
+        t.textContent = msg;
+        t.classList.add('show');
+        setTimeout(() => t.classList.remove('show'), 2500);
+    }
+}
+
+const app = new App();
+</script>
+</body>
+</html>
