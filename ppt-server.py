@@ -308,7 +308,16 @@ if __name__ == '__main__':
     print('  ╚══════════════════════════════════════╝')
     print()
 
-    server = http.server.HTTPServer(('0.0.0.0', PORT), RequestHandler)
+    http.server.HTTPServer.allow_reuse_address = True
+    try:
+        server = http.server.HTTPServer(('0.0.0.0', PORT), RequestHandler)
+    except OSError as e:
+        if e.errno == 48:
+            print(f'  ⚠️  포트 {PORT}이 이미 사용 중입니다.')
+            print(f'  다른 터미널에서 서버가 실행 중인지 확인하세요.')
+            print(f'  또는: lsof -i :{PORT} 으로 확인 후 종료하세요.')
+            sys.exit(1)
+        raise
     try:
         server.serve_forever()
     except KeyboardInterrupt:
